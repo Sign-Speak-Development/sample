@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Webcam Video Capture</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+</head>
+<body>
+    <video style="display:block" id="video" width="640" height="480" autoplay></video>
+    <button id="toggle">Start</button>
+    <p id="result"></button>
+
+    <script>
+        var recordedBlobs = []
+        var mediaRecorder
+        var isRecording = false
+
+        navigator.mediaDevices.getUserMedia({video: true, audio: false})
+            .then(stream => {
+                mediaRecorder = new MediaRecorder(stream)
+                mediaRecorder.onstop = (event) => {
+                    var lastChunk = event.data;
+
+                    if (lastChunk && lastChunk.size > 0) {
+                        recordedBlobs.push(lastChunk);
+                    }
+
+                    var blob = new Blob(recordedBlobs, {type: 'video/webm'})
+                    var reader = new FileReader()
+                    reader.readAsDataURL(blob) 
+                    reader.onloadend = function() {
+                        var base64data = reader.result                
+                        $.ajax({
+                            url: 'https://api.sign-speak-dev.com/recognition',
+                            type: 'POST',
+                            crossDomain: true,
+                            headers: {
+                                "x-api-key": "API_KEY"
+                            },  
+                            data: base64data.split(",")[1],
+                            contentType: 'text/plain',
+                            dataType: 'text',
+                            error: function (jqXHR, textStatus, errorThrown) {
+                                console.log('AJAX error: ', textStatus, ', ', errorThrown);
+                            },
+                            success: function (data) {
+                                $("#result").text(data)
+                                $("#toggle").html("Start")
+                                $("#toggle").show()
+                            }
+                        })
+                    }
+                }
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data && event.data.size > 0) {
+                        recordedBlobs.push(event.data)
+                    }
+                }
+                document.querySelector('video').srcObject = stream
+            })
+
+        $('#toggle').on('click', () => {
+            if (isRecording) {
+                mediaRecorder.stop()
+                $("#result").text("waiting...")
+                $("#toggle").hide()
+            } else {
+                mediaRecorder.start(10)
+                recordedBlobs = []
+                $("#result").text("")
+                $("#toggle").html("Stop")
+            }
+            isRecording = !isRecording
+        })
+    </script>
+</body>
+</html>
